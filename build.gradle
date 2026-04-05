@@ -1010,7 +1010,7 @@ task distDocker(type: Exec) {
     dockerPlatform = "--platform ${project.getProperty('docker-platform')}"
   }
   def gitDetails = getGitCommitDetails(7)
-  args "-c", "docker build ${dockerPlatform} --provenance=false --build-arg BUILD_DATE=${buildTime()} --build-arg VERSION=${dockerBuildVersion} --build-arg VCS_REF=${gitDetails.hash} -t ${image} ."
+  args "-c", "docker build ${dockerPlatform} --build-arg BUILD_DATE=${buildTime()} --build-arg VERSION=${dockerBuildVersion} --build-arg VCS_REF=${gitDetails.hash} -t ${image} ."
 }
 
 tasks.register("downloadGossBinaries") {
@@ -1128,61 +1128,30 @@ task dockerUploadRelease {
   dependsOn dockerUploadReleaseArm64, dockerUploadReleaseAmd64
 }
 
-task manifestDockerCreate(type: Exec) {
+task manifestDocker(type: Exec) {
   def image = "${dockerImageName}:${dockerBuildVersion}"
-  def archs = [
-    "arm64",
-    "amd64"] //TODO: this assumes dockerUpload task has already been run on 2 different archs!
+  def archs = ["arm64", "amd64"]
+
   doFirst {
     def targets = ""
     archs.forEach { arch -> targets += "'${image}-${arch}' " }
-    def cmd = "docker manifest create '${image}' ${targets}"
+    def cmd = "docker buildx imagetools create -t '${image}' ${targets}"
     println "Executing '${cmd}'"
     commandLine shell, "-c", cmd
   }
 }
 
-task manifestDockerPush(type: Exec) {
-  dependsOn manifestDockerCreate
-  def image = "${dockerImageName}:${dockerBuildVersion}"
-
-  doFirst {
-    def cmd = "docker manifest push '${image}'"
-    println "Executing '${cmd}'"
-    commandLine shell, "-c", cmd
-  }
-}
-
-task manifestDocker {
-  dependsOn manifestDockerPush
-}
-
-task manifestDockerReleaseCreate(type: Exec) {
+task manifestDockerRelease(type: Exec) {
   def archs = ["arm64", "amd64"]
   def baseTag = "${dockerImageName}:latest"
 
   doFirst {
     def targets = ""
     archs.forEach { arch -> targets += "'${baseTag}-${arch}' " }
-    def cmd = "docker manifest create '${baseTag}' ${targets} --amend"
+    def cmd = "docker buildx imagetools create -t '${baseTag}' ${targets}"
     println "Executing '${cmd}'"
     commandLine shell, "-c", cmd
   }
-}
-
-task manifestDockerReleasePush(type: Exec) {
-  dependsOn manifestDockerReleaseCreate
-  def baseTag = "${dockerImageName}:latest"
-
-  doFirst {
-    def cmd = "docker manifest push '${baseTag}'"
-    println "Executing '${cmd}'"
-    commandLine shell, "-c", cmd
-  }
-}
-
-task manifestDockerRelease {
-  dependsOn manifestDockerReleasePush
 }
 
 def sep = Pattern.quote(File.separator)
